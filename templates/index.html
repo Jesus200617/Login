@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - Minuto para Ganar{% endblock %}
+
+{% block content %}
+<style>
+  body {
+    background: radial-gradient(circle at top center, #1a1b26 0%, #090a0f 100%);
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  .glass-card {
+    background: rgba(18, 20, 29, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .glass-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .video-container {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 25px rgba(0, 210, 255, 0.2);
+    margin: 0 auto;
+  }
+
+  .video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+</style>
+
+<div class="container py-4" style="max-width: 1100px;">
+  <!-- Branding e Imagen Principal -->
+  <div class="text-center mb-5">
+    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo Minuto para Ganar" class="img-fluid mb-3" style="max-height: 120px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));">
+    <h1 class="fw-bold text-white tracking-wide text-uppercase">Minuto para Ganar</h1>
+    <p class="text-secondary">Sistema de Gestión de Inventario y Control de Eventos</p>
+  </div>
+
+  <!-- Video interactivo de Ruleta -->
+  <div class="text-center mb-5">
+    <div class="video-container">
+      <video autoplay loop muted playsinline>
+        <source src="{{ url_for('static', filename='video/ruleta.webm') }}" type="video/webm">
+        Tu navegador no soporta video en HTML5.
+      </video>
+    </div>
+  </div>
+
+  <!-- Tarjetas de Navegación del Sistema -->
+  <div class="row g-4 justify-content-center">
+    <div class="col-md-5">
+      <a href="/inventario" class="text-decoration-none">
+        <div class="glass-card p-4 text-center h-100 d-flex flex-column align-items-center justify-content-center">
+          <img src="{{ url_for('static', filename='img/caja.png') }}" alt="Inventario" style="width: 60px; height: 60px;" class="mb-3">
+          <h3 class="fw-bold text-white mb-2">Inventario</h3>
+          <p class="text-secondary small m-0">Administra juegos, materiales disponibles y existencias en tiempo real.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-5">
+      <a href="/citas" class="text-decoration-none">
+        <div class="glass-card p-4 text-center h-100 d-flex flex-column align-items-center justify-content-center">
+          <img src="{{ url_for('static', filename='img/papel.png') }}" alt="Agendar Cita" style="width: 60px; height: 60px;" class="mb-3">
+          <h3 class="fw-bold text-white mb-2">Citas y Eventos</h3>
+          <p class="text-secondary small m-0">Agenda nuevos shows, calcula costos y descuenta juegos del stock.</p>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Citas y Eventos - Minuto para Ganar{% endblock %}
+
+{% block content %}
+<style>
+  body {
+    background: radial-gradient(circle at top center, #1a1b26 0%, #090a0f 100%);
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  .glass-card {
+    background: rgba(18, 20, 29, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+</style>
+
+<div class="container py-4" style="max-width: 1100px;">
+  <!-- Encabezado -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-3">
+      <img src="{{ url_for('static', filename='img/papel.png') }}" alt="Citas" style="width: 45px; height: 45px; object-fit: contain;">
+      <h2 class="fw-bold m-0 text-uppercase text-white">Agendamiento de Citas</h2>
+    </div>
+    <a href="/" class="btn btn-outline-light btn-sm rounded-3">← Volver al Panel</a>
+  </div>
+
+  <div class="row g-4">
+    <!-- Formulario para Agendar Cita -->
+    <div class="col-md-5">
+      <div class="glass-card p-4">
+        <h4 class="fw-bold mb-3 text-success">Agendar Evento / Show</h4>
+        <form id="formCita">
+          <div class="mb-3">
+            <label class="form-label small text-secondary">Nombre del Cliente</label>
+            <input type="text" id="cliente_nombre" class="form-control bg-dark text-white border-secondary" required placeholder="Ej: Juan Pérez">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small text-secondary">Contacto (Teléfono/Correo)</label>
+            <input type="text" id="contacto" class="form-control bg-dark text-white border-secondary" placeholder="Ej: 8112345678">
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small text-secondary">Fecha</label>
+              <input type="date" id="fecha" class="form-control bg-dark text-white border-secondary" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small text-secondary">Hora</label>
+              <input type="time" id="hora" class="form-control bg-dark text-white border-secondary" required>
+            </div>
+          </div>
+
+          <!-- Selección del Nivel de Show -->
+          <div class="mb-3">
+            <label class="form-label small text-secondary">Tipo de Show / Evento</label>
+            <select id="tipo_show_id" class="form-select bg-dark text-white border-secondary" required onchange="actualizarMaxJuegos()">
+              <option value="">Cargando opciones...</option>
+            </select>
+          </div>
+
+          <!-- Selección de Juegos del Inventario -->
+          <div class="mb-3">
+            <label class="form-label small text-secondary d-flex justify-content-between">
+              <span>Juegos Incluidos (Salen del Stock)</span>
+              <span id="labelMaxJuegos" class="text-warning fw-bold">(Max: 0)</span>
+            </label>
+            <div id="contenedorJuegos" class="border border-secondary rounded-3 p-2 bg-black bg-opacity-50" style="max-height: 180px; overflow-y: auto;">
+              <small class="text-muted d-block">Selecciona un tipo de show primero...</small>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-success w-100 fw-bold py-2.5 mt-2 rounded-3">Agendar Cita y Guardar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tabla de Citas Registradas -->
+    <div class="col-md-7">
+      <div class="glass-card p-4">
+        <h4 class="fw-bold mb-3 text-white">Citas Agendadas</h4>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle bg-transparent">
+            <thead>
+              <tr class="text-secondary border-bottom border-secondary">
+                <th>Cliente</th>
+                <th>Fecha/Hora</th>
+                <th>Show / Precio</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCitas">
+              <tr><td colspan="4" class="text-center text-muted">Cargando citas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para ver el Reporte / Resumen de Cita -->
+<div class="modal fade" id="modalReporte" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white border border-secondary rounded-4">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title fw-bold text-success">📜 Reporte del Evento</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="contenidoReporte">
+        <!-- Se llena dinámicamente con JavaScript -->
+      </div>
+      <div class="modal-footer border-secondary d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-success rounded-3 fw-bold" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let listaShows = [];
+  let maxJuegosPermitidos = 0;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    cargarShows();
+    cargarProductosDisponibles();
+    cargarCitas();
+
+    document.getElementById("formCita").addEventListener("submit", agendarCita);
+  });
+
+  async function cargarShows() {
+    const res = await fetch("/api/shows");
+    listaShows = await res.json();
+    const select = document.getElementById("tipo_show_id");
+    select.innerHTML = '<option value="">Selecciona nivel de show...</option>';
+    listaShows.forEach(s => {
+      select.innerHTML += `<option value="${s.id}" data-max="${s.max_juegos}">${s.nombre} - $${s.precio.toFixed(2)} (${s.max_juegos} juegos max)</option>`;
+    });
+  }
+
+  function actualizarMaxJuegos() {
+    const select = document.getElementById("tipo_show_id");
+    const option = select.options[select.selectedIndex];
+    maxJuegosPermitidos = parseInt(option.getAttribute("data-max")) || 0;
+    document.getElementById("labelMaxJuegos").innerText = `(Max: ${maxJuegosPermitidos})`;
+    validarCheckboxes();
+  }
+
+  async function cargarProductosDisponibles() {
+    const res = await fetch("/api/productos");
+    const productos = await res.json();
+    const contenedor = document.getElementById("contenedorJuegos");
+    
+    if (productos.length === 0) {
+      contenedor.innerHTML = '<small class="text-danger">No hay juegos registrados en el inventario.</small>';
+      return;
+    }
+
+    contenedor.innerHTML = "";
+    productos.forEach(p => {
+      const disabled = p.cantidad < 1 ? "disabled" : "";
+      const textClass = p.cantidad < 1 ? "text-muted" : "text-white";
+      contenedor.innerHTML += `
+        <div class="form-check">
+          <input class="form-check-input check-juego" type="checkbox" value="${p.id}" id="prod_${p.id}" ${disabled} onchange="validarCheckboxes(event)">
+          <label class="form-check-label ${textClass} small" for="prod_${p.id}">
+            ${p.nombre} <span class="text-secondary">(Stock: ${p.cantidad})</span>
+          </label>
+        </div>
+      `;
+    });
+  }
+
+  function validarCheckboxes(e) {
+    const checked = document.querySelectorAll(".check-juego:checked");
+    if (checked.length > maxJuegosPermitidos) {
+      alert(`Este show solo permite seleccionar hasta ${maxJuegosPermitidos} juegos.`);
+      if (e && e.target) e.target.checked = false;
+    }
+  }
+
+  async function agendarCita(e) {
+    e.preventDefault();
+    const tipoShowId = document.getElementById("tipo_show_id").value;
+    const checkedJuegos = Array.from(document.querySelectorAll(".check-juego:checked")).map(c => parseInt(c.value));
+
+    if (!tipoShowId) {
+      alert("Por favor selecciona un nivel de Show.");
+      return;
+    }
+
+    const payload = {
+      cliente_nombre: document.getElementById("cliente_nombre").value,
+      contacto: document.getElementById("contacto").value,
+      fecha: document.getElementById("fecha").value,
+      hora: document.getElementById("hora").value,
+      tipo_show_id: parseInt(tipoShowId),
+      productos_ids: checkedJuegos
+    };
+
+    const res = await fetch("/api/citas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Ocurrió un error al agendar la cita.");
+      return;
+    }
+
+    alert("¡Cita agendada con éxito y stock actualizado!");
+    document.getElementById("formCita").reset();
+    document.getElementById("labelMaxJuegos").innerText = "(Max: 0)";
+    cargarProductosDisponibles();
+    cargarCitas();
+  }
+
+  async function cargarCitas() {
+    const res = await fetch("/api/citas");
+    const citas = await res.json();
+    const tbody = document.getElementById("tablaCitas");
+
+    if (citas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay citas pendientes.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = "";
+    citas.forEach(c => {
+      tbody.innerHTML += `
+        <tr class="border-bottom border-secondary border-opacity-25">
+          <td class="fw-bold">${c.cliente_nombre}<br><small class="text-secondary">${c.contacto || 'Sin contacto'}</small></td>
+          <td>${c.fecha}<br><small class="text-secondary">${c.hora} hs</small></td>
+          <td><span class="badge bg-primary">${c.nombre_show}</span><br><small class="text-success fw-bold">$${c.costo_total.toFixed(2)}</small></td>
+          <td>
+            <button class="btn btn-sm btn-outline-info rounded-2" onclick='verReporte(${JSON.stringify(c)})'>Ver Reporte</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  function verReporte(cita) {
+    const contenedor = document.getElementById("contenidoReporte");
+    const listaJuegosHtml = cita.juegos && cita.juegos.length > 0 
+      ? cita.juegos.map(j => `<li>${j}</li>`).join("") 
+      : "<li><em>Sin juegos asignados</em></li>";
+
+    contenedor.innerHTML = `
+      <p class="mb-1"><strong>Cliente:</strong> ${cita.cliente_nombre}</p>
+      <p class="mb-1"><strong>Contacto:</strong> ${cita.contacto || 'N/A'}</p>
+      <p class="mb-1"><strong>Fecha y Hora:</strong> ${cita.fecha} a las ${cita.hora} hs</p>
+      <p class="mb-1"><strong>Tipo de Evento:</strong> ${cita.nombre_show}</p>
+      <p class="mb-3"><strong>Costo Total:</strong> <span class="text-success fw-bold">$${cita.costo_total.toFixed(2)}</span></p>
+      <hr class="border-secondary">
+      <h6><strong>Juegos Salidos del Inventario:</strong></h6>
+      <ul>${listaJuegosHtml}</ul>
+    `;
+    new bootstrap.Modal(document.getElementById("modalReporte")).show();
+  }
+</script>
+{% endblock %}

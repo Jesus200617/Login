@@ -1,0 +1,22 @@
+/* ===== Tema negro + ruleta lateral ===== */
+html, body { background: #000 !important; color: #f2f2f2; }
+.card, .modal-content, .table, .navbar, .form-control, .form-select, .list-group-item {
+  background-color: #111 !important; color: #f2f2f2 !important; border-color: #333 !important;
+}
+.table > :not(caption) > * > * { background-color: transparent !important; color: #f2f2f2 !important; border-color: #333 !important; }
+.form-control::placeholder { color: #888; }
+.text-muted { color: #9a9a9a !important; }
+
+/* Iconos de caja y papel (reemplazan a los emojis) */
+.icono { height: 1.4em; width: auto; vertical-align: -0.25em; image-rendering: pixelated; }
+.icono-grande { height: 64px; width: auto; image-rendering: pixelated; }
+/* El contorno negro del pixel art se pierde en fondo negro: un halo suave lo resalta */
+.icono, .icono-grande { filter: drop-shadow(0 0 2px rgba(255,255,255,.55)); }
+
+/* Ruleta en bucle, pegada a la izquierda */
+.ruleta-lateral {
+  position: fixed; left: 0; top: 50%; transform: translateY(-50%);
+  width: 230px; height: auto; pointer-events: none; z-index: 1; background: transparent;
+}
+@media (min-width: 992px) { .contenido-principal { margin-left: 250px; margin-right: 24px; max-width: calc(100% - 274px); } }
+@media (max-width: 991px) { .ruleta-lateral { display: none; } }
