@@ -1,4 +1,7 @@
 import sqlite3
+import os
+import threading
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, g, jsonify, render_template, request
@@ -290,10 +293,16 @@ def api_eliminar_cita(cita_id):
 # ------------------------------------------------------------------
 # Punto de entrada
 # ------------------------------------------------------------------
+def abrir_navegador():
+    """Abre el navegador automáticamente en la URL del servidor."""
+    webbrowser.open_new("http://127.0.0.1:5000/")
 if __name__ == "__main__":
     if not DATABASE.exists():
         print("Base de datos no encontrada. Creando estructura desde schema.sql...")
         init_db()
         print(f"Base de datos creada en: {DATABASE}")
 
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        threading.Timer(0.8, abrir_navegador).start()
+    # Inicia la aplicación Flask
     app.run(debug=True, host="127.0.0.1", port=5000)
