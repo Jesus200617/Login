@@ -47,3 +47,14 @@ CREATE TABLE cita_productos (
     FOREIGN KEY (cita_id) REFERENCES citas(id) ON DELETE CASCADE,
     FOREIGN KEY (producto_id) REFERENCES productos(id)
 );
+
+CREATE TABLE usuarios (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario     TEXT UNIQUE NOT NULL,
+    password    TEXT NOT NULL,
+    rol         TEXT NOT NULL CHECK (rol IN ('admin', 'empleado'))
+);
+
+INSERT INTO usuarios (usuario, password, rol) VALUES
+('admin', '1234', 'admin'),
+('empleado1', '1234', 'empleado');

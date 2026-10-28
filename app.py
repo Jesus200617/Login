@@ -4,13 +4,16 @@ import threading
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, session, redirect, url_for
+from functools import wraps
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / "inventario_citas.db"
 SCHEMA = BASE_DIR / "schema.sql"
 
 app = Flask(__name__)
+app.secret_key = 'OMgGo9@UN6o41gvTO?'
+app.config['PERMANENT_SESSION_LIFETIME'] = False
 
 def get_db():
     """
@@ -23,14 +26,12 @@ def get_db():
         g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
-
 @app.teardown_appcontext
 def close_db(exception=None):
     """Cierra la conexión a la base de datos al finalizar cada petición."""
     db = g.pop("db", None)
     if db is not None:
         db.close()
-
 
 def init_db():
     """Crea las tablas ejecutando schema.sql."""
@@ -40,11 +41,52 @@ def init_db():
             db.executescript(f.read())
         db.commit()
 
+# ------------------------------------------------------------------
+# DECORADOR DE AUTENTICACIÓN (Definido antes de usarse en las rutas)
+# ------------------------------------------------------------------
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 # ------------------------------------------------------------------
-# RUTAS DE VISTAS (páginas HTML)
+# Login y logout
+# ------------------------------------------------------------------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        data = request.form if request.form.get("usuario") else request.get_json(silent=True) or {}
+        usuario = data.get("usuario", "").strip()
+        password = data.get("password", "").strip()
+
+        db = get_db()
+        user = db.execute("SELECT * FROM usuarios WHERE usuario = ? AND password = ?", (usuario, password)).fetchone()
+
+        if user:
+            session["user_id"] = user["id"]
+            session["usuario"] = user["usuario"]
+            session["rol"] = user["rol"]
+            return redirect(url_for("index"))
+        else:
+            return render_template("/templates/login.html", error="Usuario o contraseña incorrectos")
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ------------------------------------------------------------------
+# RUTAS DE VISTAS (páginas HTML protegidas)
 # ------------------------------------------------------------------
 @app.route("/")
+@login_required
 def index():
     """Página principal / dashboard."""
     db = get_db()
@@ -64,12 +106,14 @@ def index():
 
 
 @app.route("/inventario")
+@login_required
 def inventario_view():
     """Página del módulo de inventario."""
     return render_template("inventario.html")
 
 
 @app.route("/citas")
+@login_required
 def citas_view():
     """Página del módulo de citas."""
     return render_template("citas.html")
@@ -79,8 +123,8 @@ def citas_view():
 # API REST — SHOWS
 # ------------------------------------------------------------------
 @app.route("/api/shows", methods=["GET"])
+@login_required
 def api_listar_shows():
-    """Lista los niveles de show disponibles (Cuadro chico, mediano, grande)."""
     db = get_db()
     shows = db.execute("SELECT * FROM tipos_show ORDER BY id").fetchall()
     return jsonify([dict(s) for s in shows])
@@ -90,8 +134,8 @@ def api_listar_shows():
 # API REST — PRODUCTOS
 # ------------------------------------------------------------------
 @app.route("/api/productos", methods=["GET"])
+@login_required
 def api_listar_productos():
-    """Lista productos/juegos en el inventario."""
     db = get_db()
     q = request.args.get("q", "").strip()
     if q:
@@ -105,8 +149,8 @@ def api_listar_productos():
 
 
 @app.route("/api/productos", methods=["POST"])
+@login_required
 def api_crear_producto():
-    """Registra un nuevo producto/juego."""
     data = request.get_json(silent=True) or {}
     nombre = (data.get("nombre") or "").strip()
     descripcion = (data.get("descripcion") or "").strip()
@@ -135,8 +179,8 @@ def api_crear_producto():
 
 
 @app.route("/api/productos/<int:producto_id>/stock", methods=["PATCH"])
+@login_required
 def api_actualizar_stock(producto_id):
-    """Actualiza la cantidad en stock de un juego."""
     data = request.get_json(silent=True) or {}
     try:
         delta = int(data.get("delta", 0))
@@ -162,8 +206,8 @@ def api_actualizar_stock(producto_id):
 
 
 @app.route("/api/productos/<int:producto_id>", methods=["DELETE"])
+@login_required
 def api_eliminar_producto(producto_id):
-    """Elimina un producto."""
     db = get_db()
     producto = db.execute("SELECT * FROM productos WHERE id = ?", (producto_id,)).fetchone()
     if producto is None:
@@ -177,8 +221,8 @@ def api_eliminar_producto(producto_id):
 # API REST — CITAS Y RESUMEN DE EVENTO
 # ------------------------------------------------------------------
 @app.route("/api/citas", methods=["GET"])
+@login_required
 def api_listar_citas():
-    """Obtiene la lista de citas agendadas con su show y juegos seleccionados."""
     db = get_db()
     citas = db.execute(
         """SELECT c.*, s.nombre AS nombre_show 
@@ -190,7 +234,6 @@ def api_listar_citas():
     resultado = []
     for cita in citas:
         c_dict = dict(cita)
-        # Buscar juegos asociados a esta cita
         juegos = db.execute(
             """SELECT p.nombre 
                FROM cita_productos cp 
@@ -205,18 +248,15 @@ def api_listar_citas():
 
 
 @app.route("/api/citas", methods=["POST"])
+@login_required
 def api_crear_cita():
-    """
-    Agendas cita, valida max_juegos del show seleccionado,
-    y descuenta automáticamente 1 unidad del inventario por cada juego elegido.
-    """
     data = request.get_json(silent=True) or {}
     cliente_nombre = (data.get("cliente_nombre") or "").strip()
     contacto = (data.get("contacto") or "").strip()
     fecha = (data.get("fecha") or "").strip()
     hora = (data.get("hora") or "").strip()
     tipo_show_id = data.get("tipo_show_id")
-    productos_ids = data.get("productos_ids", [])  # Lista de IDs de los juegos/productos elegidos
+    productos_ids = data.get("productos_ids", [])
 
     if not cliente_nombre or not fecha or not hora or not tipo_show_id:
         return jsonify({"error": "Nombre del cliente, fecha, hora y tipo de show son obligatorios."}), 400
@@ -229,13 +269,11 @@ def api_crear_cita():
     if len(productos_ids) > show["max_juegos"]:
         return jsonify({"error": f"El show '{show['nombre']}' solo permite hasta {show['max_juegos']} juegos."}), 400
 
-    # Verificar stock disponible de cada juego seleccionado
     for pid in productos_ids:
         prod = db.execute("SELECT * FROM productos WHERE id = ?", (pid,)).fetchone()
         if not prod or prod["cantidad"] < 1:
             return jsonify({"error": f"El juego '{prod['nombre'] if prod else pid}' no tiene stock suficiente."}), 400
 
-    # Registrar la cita con el costo del show seleccionado
     cursor = db.execute(
         """INSERT INTO citas (cliente_nombre, contacto, fecha, hora, tipo_show_id, costo_total, estado)
            VALUES (?, ?, ?, ?, ?, ?, 'Pendiente')""",
@@ -243,7 +281,6 @@ def api_crear_cita():
     )
     cita_id = cursor.lastrowid
 
-    # Asociar juegos y descontar del inventario
     for pid in productos_ids:
         db.execute("INSERT INTO cita_productos (cita_id, producto_id) VALUES (?, ?)", (cita_id, pid))
         db.execute(
@@ -258,8 +295,8 @@ def api_crear_cita():
 
 
 @app.route("/api/citas/<int:cita_id>/estado", methods=["PATCH"])
+@login_required
 def api_actualizar_estado_cita(cita_id):
-    """Cambia el estado de una cita."""
     data = request.get_json(silent=True) or {}
     nuevo_estado = (data.get("estado") or "").strip()
     estados_validos = {"Pendiente", "Completada", "Cancelada"}
@@ -279,8 +316,8 @@ def api_actualizar_estado_cita(cita_id):
 
 
 @app.route("/api/citas/<int:cita_id>", methods=["DELETE"])
+@login_required
 def api_eliminar_cita(cita_id):
-    """Elimina una cita."""
     db = get_db()
     cita = db.execute("SELECT * FROM citas WHERE id = ?", (cita_id,)).fetchone()
     if cita is None:
@@ -291,11 +328,11 @@ def api_eliminar_cita(cita_id):
 
 
 # ------------------------------------------------------------------
-# Punto de entrada
+# Punto de entrada (Al final del archivo)
 # ------------------------------------------------------------------
 def abrir_navegador():
-    """Abre el navegador automáticamente en la URL del servidor."""
     webbrowser.open_new("http://127.0.0.1:5000/")
+
 if __name__ == "__main__":
     if not DATABASE.exists():
         print("Base de datos no encontrada. Creando estructura desde schema.sql...")
@@ -304,5 +341,5 @@ if __name__ == "__main__":
 
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         threading.Timer(0.8, abrir_navegador).start()
-    # Inicia la aplicación Flask
+        
     app.run(debug=True, host="127.0.0.1", port=5000)

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - Minuto para Ganar{% endblock %}
+
+{% block content %}
+<style>
+  body {
+    background: radial-gradient(circle at top center, #1a1b26 0%, #090a0f 100%);
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .glass-card {
+    background: rgba(18, 20, 29, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    width: 100%;
+    max-width: 400px;
+  }
+</style>
+
+<div class="container d-flex justify-content-center align-items-center">
+  <div class="glass-card p-4 p-md-5">
+    
+    <div class="text-center mb-4">
+      <h3 class="fw-bold text-white text-uppercase">Minuto para Ganar</h3>
+    </div>
+
+    {% if error %}
+      <div class="alert alert-danger py-2 small text-center rounded-3" role="alert">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+      <div class="mb-3">
+        <label for="usuario" class="form-label small text-secondary">Usuario</label>
+        <input type="text" class="form-control bg-dark text-white border-secondary rounded-3" id="usuario" name="usuario" required>
+      </div>
+
+      <div class="mb-4">
+        <label for="password" class="form-label small text-secondary">Contraseña</label>
+        <input type="password" class="form-control bg-dark text-white border-secondary rounded-3" id="password" name="password" required>
+      </div>
+
+      <button type="submit" class="btn btn-success w-100 fw-bold py-2 rounded-3">Ingresar al Sistema</button>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
